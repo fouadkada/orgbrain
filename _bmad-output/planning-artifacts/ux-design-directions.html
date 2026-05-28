@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OrgBrain — UX Design Directions</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --zinc-50: #fafafa; --zinc-100: #f4f4f5; --zinc-200: #e4e4e7;
+    --zinc-300: #d4d4d8; --zinc-400: #a1a1aa; --zinc-500: #71717a;
+    --zinc-600: #52525b; --zinc-700: #3f3f46; --zinc-800: #27272a;
+    --zinc-900: #18181b; --zinc-950: #09090b;
+    --indigo-400: #818cf8; --indigo-500: #6366f1; --indigo-600: #4f46e5;
+    --emerald-400: #34d399; --emerald-500: #10b981;
+    --amber-400: #fbbf24; --amber-500: #f59e0b;
+    --orange-500: #f97316; --red-500: #ef4444; --red-600: #dc2626;
+  }
+
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: var(--zinc-950);
+    color: var(--zinc-100);
+    min-height: 100vh;
+  }
+
+  /* NAV */
+  .nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(9,9,11,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--zinc-800);
+    padding: 0 32px;
+    display: flex; align-items: center; gap: 8px;
+    height: 52px;
+  }
+  .nav-logo { font-size: 14px; font-weight: 600; color: var(--zinc-100); margin-right: 16px; }
+  .nav-btn {
+    padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 500;
+    cursor: pointer; border: none; transition: all 0.15s;
+    background: transparent; color: var(--zinc-400);
+  }
+  .nav-btn:hover { background: var(--zinc-800); color: var(--zinc-100); }
+  .nav-btn.active { background: var(--zinc-800); color: var(--zinc-100); }
+
+  /* DIRECTION PANELS */
+  .direction { display: none; min-height: calc(100vh - 52px); }
+  .direction.active { display: flex; }
+
+  .direction-label {
+    position: fixed; bottom: 24px; right: 24px;
+    background: var(--zinc-800); border: 1px solid var(--zinc-700);
+    border-radius: 8px; padding: 8px 14px;
+    font-size: 11px; color: var(--zinc-400);
+    pointer-events: none; z-index: 50;
+  }
+  .direction-label strong { color: var(--zinc-200); font-weight: 600; }
+
+  /* ═══════════════════════════════════════════
+     DIRECTION 1 — Linear Minimal (Dark)
+     Sidebar nav + centered content column
+  ═══════════════════════════════════════════ */
+  .d1 { background: var(--zinc-950); }
+
+  .d1-sidebar {
+    width: 240px; min-height: 100%; flex-shrink: 0;
+    border-right: 1px solid var(--zinc-800);
+    padding: 20px 12px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .d1-sidebar-logo {
+    font-size: 13px; font-weight: 600; color: var(--zinc-100);
+    padding: 6px 10px; margin-bottom: 12px; letter-spacing: -0.01em;
+  }
+  .d1-nav-item {
+    padding: 6px 10px; border-radius: 6px; font-size: 13px;
+    color: var(--zinc-400); cursor: pointer; display: flex; align-items: center; gap: 8px;
+  }
+  .d1-nav-item:hover { background: var(--zinc-800); color: var(--zinc-200); }
+  .d1-nav-item.active { background: var(--zinc-800); color: var(--zinc-100); }
+  .d1-nav-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.5; flex-shrink: 0; }
+  .d1-nav-item.active .d1-nav-dot { opacity: 1; background: var(--indigo-500); }
+
+  .d1-main {
+    flex: 1; display: flex; flex-direction: column;
+    max-width: 720px; margin: 0 auto; padding: 48px 32px 80px;
+    width: 100%;
+  }
+  .d1-page-title { font-size: 13px; font-weight: 500; color: var(--zinc-500); margin-bottom: 32px; letter-spacing: 0.02em; text-transform: uppercase; }
+
+  .d1-ask {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--zinc-900); border: 1px solid var(--zinc-700);
+    border-radius: 10px; padding: 12px 16px; margin-bottom: 32px;
+    transition: border-color 0.15s;
+  }
+  .d1-ask:focus-within { border-color: var(--indigo-500); }
+  .d1-ask-icon { color: var(--zinc-500); font-size: 14px; flex-shrink: 0; }
+  .d1-ask input {
+    flex: 1; background: none; border: none; outline: none;
+    font-size: 14px; color: var(--zinc-100); font-family: inherit;
+  }
+  .d1-ask input::placeholder { color: var(--zinc-500); }
+  .d1-ask-kbd {
+    font-size: 11px; color: var(--zinc-600); background: var(--zinc-800);
+    border: 1px solid var(--zinc-700); border-radius: 4px; padding: 2px 6px;
+    flex-shrink: 0;
+  }
+
+  .d1-answer-block { background: var(--zinc-900); border-radius: 10px; border: 1px solid var(--zinc-800); overflow: hidden; margin-bottom: 16px; }
+  .d1-answer-meta {
+    padding: 12px 16px; border-bottom: 1px solid var(--zinc-800);
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .d1-conf {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; font-weight: 500;
+  }
+  .d1-conf-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--emerald-500); flex-shrink: 0; }
+  .d1-conf-text { color: var(--emerald-400); }
+  .d1-sources { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .d1-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--zinc-800); border: 1px solid var(--zinc-700);
+    border-radius: 5px; padding: 3px 8px; font-size: 11px; color: var(--zinc-300);
+    cursor: pointer;
+  }
+  .d1-chip:hover { border-color: var(--indigo-500); color: var(--indigo-400); }
+  .d1-chip-avatar { width: 14px; height: 14px; border-radius: 50%; background: var(--indigo-600); flex-shrink: 0; }
+  .d1-answer-body { padding: 16px; font-size: 14px; line-height: 1.7; color: var(--zinc-200); }
+  .d1-answer-footer {
+    padding: 10px 16px; border-top: 1px solid var(--zinc-800);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .d1-feedback-btn {
+    background: none; border: 1px solid var(--zinc-700); color: var(--zinc-500);
+    border-radius: 5px; padding: 3px 8px; font-size: 11px; cursor: pointer; font-family: inherit;
+  }
+  .d1-feedback-btn:hover { border-color: var(--zinc-600); color: var(--zinc-300); }
+
+  .d1-followup {
+    display: flex; align-items: center; gap: 8px;
+    border: 1px solid var(--zinc-800); border-radius: 8px; padding: 10px 14px;
+    color: var(--zinc-600); font-size: 13px;
+  }
+
+  /* ═══════════════════════════════════════════
+     DIRECTION 2 — Conversational / Chat Thread
+     Full-width chat metaphor
+  ═══════════════════════════════════════════ */
+  .d2 { background: var(--zinc-950); }
+
+  .d2-sidebar {
+    width: 240px; min-height: 100%; flex-shrink: 0;
+    border-right: 1px solid var(--zinc-800); padding: 20px 12px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .d2-sidebar-logo { font-size: 13px; font-weight: 600; color: var(--zinc-100); padding: 6px 10px; margin-bottom: 12px; }
+  .d2-nav-item {
+    padding: 6px 10px; border-radius: 6px; font-size: 13px;
+    color: var(--zinc-500); cursor: pointer;
+  }
+  .d2-nav-item.active { background: var(--zinc-800); color: var(--zinc-100); }
+  .d2-session-list { margin-top: 16px; }
+  .d2-session-label { font-size: 10px; color: var(--zinc-600); text-transform: uppercase; letter-spacing: 0.05em; padding: 0 10px; margin-bottom: 6px; }
+  .d2-session-item {
+    padding: 6px 10px; border-radius: 6px; font-size: 12px;
+    color: var(--zinc-500); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .d2-session-item:hover { background: var(--zinc-900); color: var(--zinc-300); }
+
+  .d2-chat {
+    flex: 1; display: flex; flex-direction: column;
+    max-width: 760px; margin: 0 auto; width: 100%; padding: 32px 32px 0;
+  }
+  .d2-thread { flex: 1; display: flex; flex-direction: column; gap: 24px; padding-bottom: 24px; }
+
+  .d2-user-turn { display: flex; justify-content: flex-end; }
+  .d2-user-bubble {
+    background: var(--indigo-600); color: white;
+    border-radius: 14px 14px 4px 14px; padding: 10px 16px;
+    font-size: 14px; max-width: 80%;
+  }
+
+  .d2-ai-turn { display: flex; flex-direction: column; gap: 8px; }
+  .d2-ai-meta { display: flex; align-items: center; gap: 8px; }
+  .d2-ai-icon { width: 24px; height: 24px; border-radius: 6px; background: var(--zinc-800); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: var(--indigo-400); flex-shrink: 0; }
+  .d2-ai-conf { font-size: 11px; color: var(--emerald-400); font-weight: 500; }
+  .d2-ai-sources { display: flex; gap: 5px; flex-wrap: wrap; margin-left: 32px; }
+  .d2-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--zinc-800); border: 1px solid var(--zinc-700);
+    border-radius: 4px; padding: 2px 7px; font-size: 11px; color: var(--zinc-400);
+  }
+  .d2-ai-body { margin-left: 32px; font-size: 14px; line-height: 1.7; color: var(--zinc-200); }
+  .d2-ai-actions { margin-left: 32px; display: flex; gap: 6px; }
+  .d2-action-btn {
+    background: none; border: 1px solid var(--zinc-800); color: var(--zinc-500);
+    border-radius: 5px; padding: 3px 8px; font-size: 11px; cursor: pointer; font-family: inherit;
+  }
+
+  .d2-input-area {
+    position: sticky; bottom: 0; padding: 16px 0 24px;
+    background: linear-gradient(transparent, var(--zinc-950) 40%);
+  }
+  .d2-input-row {
+    display: flex; gap: 8px;
+    background: var(--zinc-900); border: 1px solid var(--zinc-700);
+    border-radius: 12px; padding: 10px 14px;
+  }
+  .d2-input-row input {
+    flex: 1; background: none; border: none; outline: none;
+    font-size: 14px; color: var(--zinc-100); font-family: inherit;
+  }
+  .d2-input-row input::placeholder { color: var(--zinc-500); }
+  .d2-send {
+    background: var(--indigo-600); color: white; border: none;
+    border-radius: 7px; width: 30px; height: 30px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0;
+  }
+
+  /* ═══════════════════════════════════════════
+     DIRECTION 3 — Search-Engine / Command Palette
+     Minimal chrome, everything starts from search
+  ═══════════════════════════════════════════ */
+  .d3 { background: var(--zinc-950); flex-direction: column; }
+
+  .d3-topbar {
+    border-bottom: 1px solid var(--zinc-800); padding: 10px 24px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .d3-logo { font-size: 13px; font-weight: 600; color: var(--zinc-100); flex-shrink: 0; }
+  .d3-search-wrap {
+    flex: 1; max-width: 560px;
+    display: flex; align-items: center; gap: 8px;
+    background: var(--zinc-900); border: 1px solid var(--zinc-700);
+    border-radius: 8px; padding: 7px 12px;
+  }
+  .d3-search-wrap:focus-within { border-color: var(--indigo-500); }
+  .d3-search-wrap input {
+    flex: 1; background: none; border: none; outline: none;
+    font-size: 13px; color: var(--zinc-100); font-family: inherit;
+  }
+  .d3-search-wrap input::placeholder { color: var(--zinc-500); }
+  .d3-topnav { display: flex; gap: 4px; margin-left: auto; }
+  .d3-topnav-item {
+    padding: 5px 10px; border-radius: 5px; font-size: 12px; color: var(--zinc-500);
+    cursor: pointer;
+  }
+  .d3-topnav-item.active { color: var(--zinc-100); background: var(--zinc-800); }
+
+  .d3-body { flex: 1; display: flex; }
+  .d3-results { flex: 1; padding: 28px 32px; max-width: 700px; }
+  .d3-query-echo { font-size: 11px; color: var(--zinc-500); margin-bottom: 20px; }
+  .d3-query-echo span { color: var(--zinc-300); font-weight: 500; }
+  .d3-answer-card {
+    background: var(--zinc-900); border: 1px solid var(--zinc-800);
+    border-radius: 10px; overflow: hidden; margin-bottom: 20px;
+  }
+  .d3-answer-header {
+    padding: 10px 14px; border-bottom: 1px solid var(--zinc-800);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .d3-conf-row { display: flex; align-items: center; gap: 6px; }
+  .d3-conf-bar { width: 48px; height: 4px; border-radius: 2px; background: var(--zinc-700); overflow: hidden; }
+  .d3-conf-fill { height: 100%; width: 82%; background: var(--emerald-500); border-radius: 2px; }
+  .d3-conf-label { font-size: 11px; color: var(--emerald-400); font-weight: 500; }
+  .d3-chips { display: flex; gap: 5px; flex-wrap: wrap; }
+  .d3-chip {
+    background: var(--zinc-800); border: 1px solid var(--zinc-700);
+    border-radius: 4px; padding: 2px 7px; font-size: 11px; color: var(--zinc-400);
+    cursor: pointer;
+  }
+  .d3-chip:hover { border-color: var(--indigo-500); color: var(--indigo-400); }
+  .d3-answer-text { padding: 14px; font-size: 14px; line-height: 1.7; color: var(--zinc-200); }
+  .d3-answer-footer {
+    padding: 8px 14px; border-top: 1px solid var(--zinc-800);
+    display: flex; gap: 6px;
+  }
+  .d3-btn {
+    background: none; border: 1px solid var(--zinc-700); color: var(--zinc-500);
+    border-radius: 5px; padding: 3px 8px; font-size: 11px; cursor: pointer; font-family: inherit;
+  }
+  .d3-related { }
+  .d3-related-label { font-size: 11px; color: var(--zinc-500); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; font-weight: 500; }
+  .d3-related-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; border-radius: 7px; font-size: 13px; color: var(--zinc-400);
+    cursor: pointer; border: 1px solid transparent;
+  }
+  .d3-related-item:hover { background: var(--zinc-900); border-color: var(--zinc-800); color: var(--zinc-200); }
+
+  .d3-sources-panel {
+    width: 280px; border-left: 1px solid var(--zinc-800);
+    padding: 28px 20px; flex-shrink: 0;
+  }
+  .d3-sp-label { font-size: 11px; color: var(--zinc-500); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; font-weight: 500; }
+  .d3-source-card {
+    background: var(--zinc-900); border: 1px solid var(--zinc-800);
+    border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer;
+  }
+  .d3-source-card:hover { border-color: var(--zinc-700); }
+  .d3-sc-person { font-size: 12px; font-weight: 500; color: var(--zinc-200); margin-bottom: 3px; }
+  .d3-sc-channel { font-size: 11px; color: var(--zinc-500); margin-bottom: 5px; }
+  .d3-sc-excerpt { font-size: 11px; color: var(--zinc-400); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* ═══════════════════════════════════════════
+     DIRECTION 4 — Intelligence Dashboard (VP)
+     Card-brief layout for departure risk
+  ═══════════════════════════════════════════ */
+  .d4 { background: var(--zinc-950); }
+
+  .d4-sidebar {
+    width: 240px; flex-shrink: 0; border-right: 1px solid var(--zinc-800);
+    padding: 20px 12px; display: flex; flex-direction: column; gap: 2px;
+  }
+  .d4-logo { font-size: 13px; font-weight: 600; color: var(--zinc-100); padding: 6px 10px; margin-bottom: 12px; }
+  .d4-nav-section { font-size: 10px; color: var(--zinc-600); text-transform: uppercase; letter-spacing: 0.05em; padding: 6px 10px 4px; margin-top: 8px; }
+  .d4-nav-item {
+    padding: 6px 10px; border-radius: 6px; font-size: 13px;
+    color: var(--zinc-500); cursor: pointer; display: flex; align-items: center; justify-content: space-between;
+  }
+  .d4-nav-item.active { background: var(--zinc-800); color: var(--zinc-100); }
+  .d4-nav-badge {
+    background: var(--orange-500); color: white;
+    border-radius: 9px; padding: 1px 6px; font-size: 10px; font-weight: 600;
+  }
+
+  .d4-main { flex: 1; padding: 32px; overflow-y: auto; }
+  .d4-page-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 8px; }
+  .d4-page-title { font-size: 18px; font-weight: 600; color: var(--zinc-100); }
+  .d4-updated { font-size: 12px; color: var(--zinc-500); }
+  .d4-page-desc { font-size: 13px; color: var(--zinc-400); margin-bottom: 28px; line-height: 1.5; }
+
+  .d4-summary-row { display: flex; gap: 12px; margin-bottom: 28px; }
+  .d4-summary-card {
+    flex: 1; background: var(--zinc-900); border-radius: 8px; border: 1px solid var(--zinc-800);
+    padding: 14px 16px;
+  }
+  .d4-sum-count { font-size: 24px; font-weight: 600; margin-bottom: 2px; }
+  .d4-sum-label { font-size: 12px; color: var(--zinc-500); }
+  .d4-sum-urgent .d4-sum-count { color: var(--red-500); }
+  .d4-sum-concern .d4-sum-count { color: var(--orange-500); }
+  .d4-sum-watch .d4-sum-count { color: var(--amber-400); }
+
+  .d4-section-label { font-size: 11px; color: var(--zinc-500); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; margin-bottom: 12px; }
+
+  .d4-signal-card {
+    background: var(--zinc-900); border: 1px solid var(--zinc-800);
+    border-radius: 10px; padding: 16px; margin-bottom: 10px;
+    display: flex; gap: 16px; align-items: flex-start;
+  }
+  .d4-signal-card.urgent { border-left: 3px solid var(--red-500); }
+  .d4-signal-card.concern { border-left: 3px solid var(--orange-500); }
+  .d4-signal-card.watch { border-left: 3px solid var(--amber-400); }
+
+  .d4-sc-left { flex: 1; }
+  .d4-sc-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .d4-sc-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--zinc-700); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; color: var(--zinc-300); }
+  .d4-sc-name { font-size: 14px; font-weight: 600; color: var(--zinc-100); }
+  .d4-sc-role { font-size: 12px; color: var(--zinc-500); }
+  .d4-sc-severity {
+    padding: 2px 8px; border-radius: 9px; font-size: 11px; font-weight: 600;
+    margin-left: auto; flex-shrink: 0;
+  }
+  .d4-sc-severity.urgent { background: rgba(239,68,68,0.15); color: var(--red-500); }
+  .d4-sc-severity.concern { background: rgba(249,115,22,0.15); color: var(--orange-500); }
+  .d4-sc-severity.watch { background: rgba(251,191,36,0.12); color: var(--amber-400); }
+  .d4-sc-pattern { font-size: 13px; color: var(--zinc-300); line-height: 1.5; margin-bottom: 8px; }
+  .d4-sc-why { font-size: 12px; color: var(--zinc-500); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+  .d4-sc-why:hover { color: var(--zinc-300); }
+  .d4-sc-action {
+    font-size: 12px; color: var(--zinc-300); background: var(--zinc-800);
+    border-radius: 6px; padding: 6px 10px; margin-top: 8px;
+    border: 1px solid var(--zinc-700);
+  }
+  .d4-sc-action strong { color: var(--zinc-100); }
+  .d4-sc-right { flex-shrink: 0; }
+  .d4-sc-duration { font-size: 11px; color: var(--zinc-500); white-space: nowrap; }
+
+  /* ═══════════════════════════════════════════
+     DIRECTION 5 — Split Panel (Answer + Sources)
+     Sources always visible, no hover needed
+  ═══════════════════════════════════════════ */
+  .d5 { background: var(--zinc-950); }
+
+  .d5-sidebar {
+    width: 220px; flex-shrink: 0; border-right: 1px solid var(--zinc-800);
+    padding: 20px 12px; display: flex; flex-direction: column; gap: 2px;
+  }
+  .d5-logo { font-size: 13px; font-weight: 600; color: var(--zinc-100); padding: 6px 10px; margin-bottom: 12px; }
+  .d5-nav-item {
+    padding: 6px 10px; border-radius: 6px; font-size: 13px;
+    color: var(--zinc-500); cursor: pointer;
+  }
+  .d5-nav-item.active { background: var(--zinc-800); color: var(--zinc-100); }
+
+  .d5-content { flex: 1; display: flex; flex-direction: column; }
+  .d5-ask-bar {
+    padding: 14px 24px; border-bottom: 1px solid var(--zinc-800);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .d5-ask-input {
+    flex: 1; background: var(--zinc-900); border: 1px solid var(--zinc-700);
+    border-radius: 8px; padding: 8px 12px; font-size: 14px;
+    color: var(--zinc-100); font-family: inherit; outline: none;
+  }
+  .d5-ask-input:focus { border-color: var(--indigo-500); }
+  .d5-panels { flex: 1; display: flex; }
+  .d5-answer-panel { flex: 1; padding: 24px; border-right: 1px solid var(--zinc-800); }
+  .d5-answer-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; }
+  .d5-conf-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.25);
+    border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 500; color: var(--emerald-400);
+  }
+  .d5-answer-text { font-size: 14px; line-height: 1.75; color: var(--zinc-200); }
+  .d5-answer-actions { margin-top: 16px; display: flex; gap: 6px; }
+  .d5-action {
+    background: none; border: 1px solid var(--zinc-700); color: var(--zinc-500);
+    border-radius: 5px; padding: 3px 8px; font-size: 11px; cursor: pointer; font-family: inherit;
+  }
+  .d5-followup-input {
+    margin-top: 20px; width: 100%; background: var(--zinc-900);
+    border: 1px solid var(--zinc-800); border-radius: 8px;
+    padding: 8px 12px; font-size: 13px; color: var(--zinc-500); font-family: inherit;
+    outline: none;
+  }
+  .d5-followup-input:focus { border-color: var(--zinc-600); color: var(--zinc-300); }
+
+  .d5-sources-panel { width: 300px; flex-shrink: 0; padding: 24px 20px; }
+  .d5-sp-title { font-size: 11px; color: var(--zinc-500); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; margin-bottom: 12px; }
+  .d5-source-item {
+    padding: 10px 12px; border-radius: 8px; margin-bottom: 6px;
+    border: 1px solid var(--zinc-800); cursor: pointer;
+  }
+  .d5-source-item:hover { border-color: var(--zinc-700); background: var(--zinc-900); }
+  .d5-source-item.active { border-color: var(--indigo-500); background: rgba(99,102,241,0.05); }
+  .d5-si-person { font-size: 12px; font-weight: 500; color: var(--zinc-200); }
+  .d5-si-channel { font-size: 11px; color: var(--zinc-500); margin-bottom: 4px; }
+  .d5-si-excerpt { font-size: 11px; color: var(--zinc-400); line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  /* ═══════════════════════════════════════════
+     DIRECTION 6 — Light Mode / Editorial
+     For comparison against dark directions
+  ═══════════════════════════════════════════ */
+  .d6 { background: var(--zinc-50); color: var(--zinc-900); }
+
+  .d6-sidebar {
+    width: 240px; flex-shrink: 0; border-right: 1px solid var(--zinc-200);
+    padding: 20px 12px; display: flex; flex-direction: column; gap: 2px;
+    background: white;
+  }
+  .d6-logo { font-size: 13px; font-weight: 600; color: var(--zinc-900); padding: 6px 10px; margin-bottom: 12px; }
+  .d6-nav-item {
+    padding: 6px 10px; border-radius: 6px; font-size: 13px;
+    color: var(--zinc-500); cursor: pointer;
+  }
+  .d6-nav-item.active { background: var(--zinc-100); color: var(--zinc-900); }
+
+  .d6-main { flex: 1; padding: 48px 48px 80px; max-width: 760px; }
+  .d6-page-title { font-size: 11px; font-weight: 500; color: var(--zinc-400); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 28px; }
+
+  .d6-ask {
+    display: flex; align-items: center; gap: 10px;
+    background: white; border: 1px solid var(--zinc-300);
+    border-radius: 10px; padding: 12px 16px; margin-bottom: 32px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .d6-ask:focus-within { border-color: var(--indigo-500); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+  .d6-ask input {
+    flex: 1; background: none; border: none; outline: none;
+    font-size: 14px; color: var(--zinc-900); font-family: inherit;
+  }
+  .d6-ask input::placeholder { color: var(--zinc-400); }
+
+  .d6-answer { background: white; border: 1px solid var(--zinc-200); border-radius: 10px; overflow: hidden; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
+  .d6-answer-meta { padding: 12px 16px; border-bottom: 1px solid var(--zinc-100); display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .d6-conf { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; color: var(--emerald-500); }
+  .d6-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    background: var(--zinc-100); border: 1px solid var(--zinc-200);
+    border-radius: 5px; padding: 3px 8px; font-size: 11px; color: var(--zinc-600); cursor: pointer;
+  }
+  .d6-chip:hover { border-color: var(--indigo-500); color: var(--indigo-600); }
+  .d6-answer-body { padding: 16px; font-size: 14px; line-height: 1.75; color: var(--zinc-700); }
+  .d6-answer-footer { padding: 10px 16px; border-top: 1px solid var(--zinc-100); display: flex; gap: 6px; }
+  .d6-feedback-btn {
+    background: none; border: 1px solid var(--zinc-200); color: var(--zinc-400);
+    border-radius: 5px; padding: 3px 8px; font-size: 11px; cursor: pointer; font-family: inherit;
+  }
+
+  /* SHARED UTILITIES */
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <span class="nav-logo">OrgBrain — Design Directions</span>
+  <button class="nav-btn active" onclick="show('d1', this)">D1 · Linear Minimal</button>
+  <button class="nav-btn" onclick="show('d2', this)">D2 · Conversational</button>
+  <button class="nav-btn" onclick="show('d3', this)">D3 · Search-First</button>
+  <button class="nav-btn" onclick="show('d4', this)">D4 · Intelligence Dashboard</button>
+  <button class="nav-btn" onclick="show('d5', this)">D5 · Split Panel</button>
+  <button class="nav-btn" onclick="show('d6', this)">D6 · Light / Editorial</button>
+</nav>
+
+<!-- ══════════════════════════════════════════
+     D1 — Linear Minimal (Dark)
+══════════════════════════════════════════ -->
+<div id="d1" class="direction d1 active">
+  <aside class="d1-sidebar">
+    <div class="d1-sidebar-logo">OrgBrain</div>
+    <div class="d1-nav-item active"><span class="d1-nav-dot"></span>Ask</div>
+    <div class="d1-nav-item"><span class="d1-nav-dot"></span>Recent</div>
+    <div class="d1-nav-item"><span class="d1-nav-dot"></span>Pinned</div>
+    <div style="margin-top:auto">
+      <div class="d1-nav-item"><span class="d1-nav-dot"></span>Admin</div>
+    </div>
+  </aside>
+  <main class="d1-main">
+    <div class="d1-page-title">Ask OrgBrain</div>
+    <div class="d1-ask">
+      <span class="d1-ask-icon">↗</span>
+      <input type="text" value="Why did we deprecate the v1 API last year?" readonly>
+      <span class="d1-ask-kbd">↵</span>
+    </div>
+    <div class="d1-answer-block">
+      <div class="d1-answer-meta">
+        <div class="d1-conf">
+          <span class="d1-conf-dot"></span>
+          <span class="d1-conf-text">High confidence</span>
+        </div>
+        <div class="d1-sources">
+          <div class="d1-chip"><div class="d1-chip-avatar"></div>Rafael · #eng-platform · Mar 2024</div>
+          <div class="d1-chip"><div class="d1-chip-avatar"></div>Priya · Design Review · Feb 2024</div>
+        </div>
+      </div>
+      <div class="d1-answer-body">
+        The v1 API was deprecated in Q1 2024 primarily due to authentication model limitations — it used static API keys with no per-scope permissions, which became a compliance risk as the org moved toward SOC 2 preparation. Rafael's platform team proposed the change in #eng-platform; the decision was ratified in the February architecture review.
+        <br><br>
+        The v2 API replaced it with OAuth 2.0 token-based auth, with the migration window closing June 2024. All internal services completed migration by May.
+      </div>
+      <div class="d1-answer-footer">
+        <button class="d1-feedback-btn">👍 Helpful</button>
+        <button class="d1-feedback-btn">👎 Wrong answer</button>
+        <button class="d1-feedback-btn" style="margin-left:auto">Copy</button>
+      </div>
+    </div>
+    <div class="d1-followup">
+      <span style="color:var(--zinc-600)">↗</span>
+      <span>Ask a follow-up…</span>
+    </div>
+  </main>
+  <div class="direction-label"><strong>D1</strong> — Linear Minimal · Sidebar nav · Centered content · Dark</div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     D2 — Conversational / Chat Thread
+══════════════════════════════════════════ -->
+<div id="d2" class="direction d2">
+  <aside class="d2-sidebar">
+    <div class="d2-sidebar-logo">OrgBrain</div>
+    <div class="d2-nav-item active">Ask</div>
+    <div class="d2-nav-item">Pinned</div>
+    <div class="d2-session-list">
+      <div class="d2-session-label">Recent</div>
+      <div class="d2-session-item">Why did we deprecate v1 API?</div>
+      <div class="d2-session-item">Who owns the billing integration?</div>
+      <div class="d2-session-item">What's our retry logic policy?</div>
+      <div class="d2-session-item">OODA loop — company context</div>
+    </div>
+  </aside>
+  <div class="d2-chat">
+    <div class="d2-thread">
+      <div class="d2-user-turn">
+        <div class="d2-user-bubble">Why did we deprecate the v1 API last year?</div>
+      </div>
+      <div class="d2-ai-turn">
+        <div class="d2-ai-meta">
+          <div class="d2-ai-icon">OB</div>
+          <span class="d2-ai-conf">High confidence · 2 sources</span>
+        </div>
+        <div class="d2-ai-sources">
+          <span class="d2-chip">Rafael · #eng-platform · Mar '24</span>
+          <span class="d2-chip">Priya · Design Review · Feb '24</span>
+        </div>
+        <div class="d2-ai-body">
+          The v1 API was deprecated in Q1 2024 primarily due to authentication model limitations — it used static API keys with no per-scope permissions, which became a compliance risk as the org moved toward SOC 2 preparation.<br><br>
+          Rafael's platform team proposed the change in #eng-platform; the decision was ratified in the February architecture review. The v2 API replaced it with OAuth 2.0 token-based auth, migration completed by May 2024.
+        </div>
+        <div class="d2-ai-actions">
+          <button class="d2-action-btn">👍</button>
+          <button class="d2-action-btn">👎 Wrong</button>
+          <button class="d2-action-btn">Copy</button>
+        </div>
+      </div>
+      <div class="d2-user-turn">
+        <div class="d2-user-bubble">Who led the migration?</div>
+      </div>
+      <div class="d2-ai-turn">
+        <div class="d2-ai-meta">
+          <div class="d2-ai-icon">OB</div>
+          <span class="d2-ai-conf">Medium confidence · 1 source</span>
+        </div>
+        <div class="d2-ai-sources">
+          <span class="d2-chip" style="border-color:var(--amber-500);color:var(--amber-400)">⚠ Source from Mar 2024 — may be stale</span>
+        </div>
+        <div class="d2-ai-body">
+          Based on available records, Rafael coordinated the migration with support from the platform team. However my information on team ownership may be out of date — <strong style="color:var(--zinc-100)">Priya</strong> (@priya) is likely the best person to confirm current ownership.
+        </div>
+        <div class="d2-ai-actions">
+          <button class="d2-action-btn">👍</button>
+          <button class="d2-action-btn">👎 Wrong</button>
+          <button class="d2-action-btn">Copy</button>
+        </div>
+      </div>
+    </div>
+    <div class="d2-input-area">
+      <div class="d2-input-row">
+        <input type="text" placeholder="Ask a follow-up…" readonly>
+        <button class="d2-send">↑</button>
+      </div>
+    </div>
+  </div>
+  <div class="direction-label"><strong>D2</strong> — Conversational · Chat thread · Session history sidebar · Dark</div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     D3 — Search-Engine / Command Palette
+══════════════════════════════════════════ -->
+<div id="d3" class="direction d3">
+  <div class="d3-topbar">
+    <span class="d3-logo">OrgBrain</span>
+    <div class="d3-search-wrap">
+      <input type="text" value="Why did we deprecate the v1 API last year?" readonly>
+    </div>
+    <div class="d3-topnav">
+      <div class="d3-topnav-item active">Ask</div>
+      <div class="d3-topnav-item">Pinned</div>
+      <div class="d3-topnav-item">Admin</div>
+    </div>
+  </div>
+  <div class="d3-body">
+    <div class="d3-results">
+      <div class="d3-query-echo">Showing results for: <span>"Why did we deprecate the v1 API last year?"</span></div>
+      <div class="d3-answer-card">
+        <div class="d3-answer-header">
+          <div class="d3-conf-row">
+            <div class="d3-conf-bar"><div class="d3-conf-fill"></div></div>
+            <span class="d3-conf-label">High confidence</span>
+          </div>
+          <div class="d3-chips">
+            <div class="d3-chip">Rafael · #eng-platform</div>
+            <div class="d3-chip">Priya · Design Review</div>
+          </div>
+        </div>
+        <div class="d3-answer-text">
+          The v1 API was deprecated in Q1 2024 due to authentication model limitations — static API keys with no per-scope permissions, which became a compliance risk ahead of SOC 2. The decision was proposed by Rafael's platform team and ratified in the February architecture review. Migration to v2 (OAuth 2.0) completed May 2024.
+        </div>
+        <div class="d3-answer-footer">
+          <button class="d3-btn">👍 Helpful</button>
+          <button class="d3-btn">👎 Wrong answer</button>
+          <button class="d3-btn" style="margin-left:auto">Copy</button>
+        </div>
+      </div>
+      <div class="d3-related">
+        <div class="d3-related-label">Related questions</div>
+        <div class="d3-related-item">→ Who led the v1 to v2 migration?</div>
+        <div class="d3-related-item">→ What's the current API authentication model?</div>
+        <div class="d3-related-item">→ When does the v1 deprecation window close?</div>
+      </div>
+    </div>
+    <div class="d3-sources-panel">
+      <div class="d3-sp-label">Sources</div>
+      <div class="d3-source-card">
+        <div class="d3-sc-person">Rafael Morales · Staff Eng</div>
+        <div class="d3-sc-channel">#eng-platform · Mar 14, 2024</div>
+        <div class="d3-sc-excerpt">"Proposing we move v1 to deprecated status by end of Q1. The static key model doesn't meet our SOC 2 requirements and there's no clean path to retrofit it…"</div>
+      </div>
+      <div class="d3-source-card">
+        <div class="d3-sc-person">Priya Nair · EM, Platform</div>
+        <div class="d3-sc-channel">Architecture Review · Feb 28, 2024</div>
+        <div class="d3-sc-excerpt">"Decision ratified: v1 deprecation timeline approved, v2 migration support budgeted, customer comms to go out March 1…"</div>
+      </div>
+    </div>
+  </div>
+  <div class="direction-label"><strong>D3</strong> — Search-first · Top bar · Sources panel · Dark</div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     D4 — Intelligence Dashboard (VP View)
+══════════════════════════════════════════ -->
+<div id="d4" class="direction d4">
+  <aside class="d4-sidebar">
+    <div class="d4-logo">OrgBrain</div>
+    <div class="d4-nav-section">Base Tier</div>
+    <div class="d4-nav-item">Ask</div>
+    <div class="d4-nav-item">Pinned</div>
+    <div class="d4-nav-section">Intelligence</div>
+    <div class="d4-nav-item active">Signals <span class="d4-nav-badge">3</span></div>
+    <div style="margin-top:auto">
+      <div class="d4-nav-section">Admin</div>
+      <div class="d4-nav-item">Settings</div>
+    </div>
+  </aside>
+  <main class="d4-main">
+    <div class="d4-page-header">
+      <div class="d4-page-title">Engagement Signals</div>
+      <div class="d4-updated">Updated 4 minutes ago</div>
+    </div>
+    <div class="d4-page-desc">Showing members with a sustained declining Slack engagement trend over the past 30 days. These signals are for leadership visibility only.</div>
+
+    <div class="d4-summary-row">
+      <div class="d4-summary-card d4-sum-urgent"><div class="d4-sum-count">1</div><div class="d4-sum-label">Urgent</div></div>
+      <div class="d4-summary-card d4-sum-concern"><div class="d4-sum-count">1</div><div class="d4-sum-label">Concerning</div></div>
+      <div class="d4-summary-card d4-sum-watch"><div class="d4-sum-count">1</div><div class="d4-sum-label">Watch</div></div>
+    </div>
+
+    <div class="d4-section-label">Active Signals</div>
+
+    <div class="d4-signal-card urgent">
+      <div class="d4-sc-left">
+        <div class="d4-sc-header">
+          <div class="d4-sc-avatar">JK</div>
+          <div>
+            <div class="d4-sc-name">Jamie K.</div>
+            <div class="d4-sc-role">Senior Engineer · Platform</div>
+          </div>
+          <div class="d4-sc-severity urgent">Urgent</div>
+        </div>
+        <div class="d4-sc-pattern">Slack message frequency has dropped 74% over the past 30 days. Response time to colleague messages has increased from ~2 hours to ~14 hours. This is the steepest engagement decline across the team this quarter.</div>
+        <div class="d4-sc-why">▾ Why did this flag? <span style="font-size:10px;margin-left:2px;color:var(--zinc-600)">(plain-language explanation)</span></div>
+        <div class="d4-sc-action"><strong>Suggested action:</strong> Consider a 1:1 check-in through Jamie's Senior EM within the next 7 days.</div>
+      </div>
+      <div class="d4-sc-right">
+        <div class="d4-sc-duration" style="color:var(--red-500)">34 days</div>
+      </div>
+    </div>
+
+    <div class="d4-signal-card concern">
+      <div class="d4-sc-left">
+        <div class="d4-sc-header">
+          <div class="d4-sc-avatar">AL</div>
+          <div>
+            <div class="d4-sc-name">Alex L.</div>
+            <div class="d4-sc-role">Staff Engineer · Infrastructure</div>
+          </div>
+          <div class="d4-sc-severity concern">Concerning</div>
+        </div>
+        <div class="d4-sc-pattern">Slack engagement has declined steadily for 22 days. Activity in cross-team channels has dropped while activity in direct messages has remained stable — a pattern consistent with reduced org-wide engagement.</div>
+        <div class="d4-sc-why">▾ Why did this flag?</div>
+        <div class="d4-sc-action"><strong>Suggested action:</strong> Raise awareness with Alex's EM at the next leadership sync.</div>
+      </div>
+      <div class="d4-sc-right">
+        <div class="d4-sc-duration" style="color:var(--orange-500)">22 days</div>
+      </div>
+    </div>
+
+    <div class="d4-signal-card watch">
+      <div class="d4-sc-left">
+        <div class="d4-sc-header">
+          <div class="d4-sc-avatar">MP</div>
+          <div>
+            <div class="d4-sc-name">Morgan P.</div>
+            <div class="d4-sc-role">Engineer II · Mobile</div>
+          </div>
+          <div class="d4-sc-severity watch">Watch</div>
+        </div>
+        <div class="d4-sc-pattern">Early declining trend across public channels over the past 12 days. Too early to draw conclusions — monitoring. Signal may resolve as a normal work rhythm variation.</div>
+        <div class="d4-sc-why">▾ Why did this flag?</div>
+      </div>
+      <div class="d4-sc-right">
+        <div class="d4-sc-duration" style="color:var(--amber-400)">12 days</div>
+      </div>
+    </div>
+  </main>
+  <div class="direction-label"><strong>D4</strong> — Intelligence Dashboard · VP view · Signal cards · Dark</div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     D5 — Split Panel (Answer + Sources Always)
+══════════════════════════════════════════ -->
+<div id="d5" class="direction d5">
+  <aside class="d5-sidebar">
+    <div class="d5-logo">OrgBrain</div>
+    <div class="d5-nav-item active">Ask</div>
+    <div class="d5-nav-item">Pinned</div>
+    <div class="d5-nav-item">Signals</div>
+    <div style="margin-top:auto">
+      <div class="d5-nav-item">Admin</div>
+    </div>
+  </aside>
+  <div class="d5-content">
+    <div class="d5-ask-bar">
+      <input class="d5-ask-input" type="text" value="Why did we deprecate the v1 API last year?" readonly>
+    </div>
+    <div class="d5-panels">
+      <div class="d5-answer-panel">
+        <div class="d5-answer-meta">
+          <span class="d5-conf-pill">✓ High confidence</span>
+          <span style="font-size:12px;color:var(--zinc-500)">2 sources · Mar 2024</span>
+        </div>
+        <div class="d5-answer-text">
+          The v1 API was deprecated in Q1 2024 primarily due to authentication model limitations — it used static API keys with no per-scope permissions, which became a compliance risk as the org moved toward SOC 2 preparation.<br><br>
+          Rafael's platform team proposed the change in #eng-platform; the decision was ratified in the February architecture review. The v2 API replaced it with OAuth 2.0 token-based auth, with migration completed by May 2024.
+        </div>
+        <div class="d5-answer-actions">
+          <button class="d5-action">👍 Helpful</button>
+          <button class="d5-action">👎 Wrong</button>
+          <button class="d5-action">Copy</button>
+        </div>
+        <input class="d5-followup-input" type="text" placeholder="Ask a follow-up…" readonly>
+      </div>
+      <div class="d5-sources-panel">
+        <div class="d5-sp-title">Sources</div>
+        <div class="d5-source-item active">
+          <div class="d5-si-person">Rafael Morales · Staff Eng</div>
+          <div class="d5-si-channel">#eng-platform · Mar 14, 2024</div>
+          <div class="d5-si-excerpt">"Proposing we move v1 to deprecated status by end of Q1. The static key model doesn't meet our SOC 2 requirements…"</div>
+        </div>
+        <div class="d5-source-item">
+          <div class="d5-si-person">Priya Nair · EM, Platform</div>
+          <div class="d5-si-channel">Architecture Review · Feb 28, 2024</div>
+          <div class="d5-si-excerpt">"Decision ratified: v1 deprecation timeline approved, v2 migration support budgeted…"</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="direction-label"><strong>D5</strong> — Split Panel · Sources always visible · Dark</div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     D6 — Light / Editorial
+══════════════════════════════════════════ -->
+<div id="d6" class="direction d6">
+  <aside class="d6-sidebar">
+    <div class="d6-logo">OrgBrain</div>
+    <div class="d6-nav-item active">Ask</div>
+    <div class="d6-nav-item">Recent</div>
+    <div class="d6-nav-item">Pinned</div>
+    <div style="margin-top:auto">
+      <div class="d6-nav-item">Admin</div>
+    </div>
+  </aside>
+  <main class="d6-main">
+    <div class="d6-page-title">Ask OrgBrain</div>
+    <div class="d6-ask">
+      <span style="color:var(--zinc-400);font-size:14px">↗</span>
+      <input type="text" value="Why did we deprecate the v1 API last year?" readonly>
+      <span style="font-size:11px;color:var(--zinc-400);background:var(--zinc-100);border:1px solid var(--zinc-200);border-radius:4px;padding:2px 6px;flex-shrink:0">↵</span>
+    </div>
+    <div class="d6-answer">
+      <div class="d6-answer-meta">
+        <div class="d6-conf">✓ High confidence</div>
+        <div class="d6-chip"><div style="width:14px;height:14px;border-radius:50%;background:var(--indigo-500);flex-shrink:0"></div>Rafael · #eng-platform · Mar 2024</div>
+        <div class="d6-chip"><div style="width:14px;height:14px;border-radius:50%;background:var(--indigo-400);flex-shrink:0"></div>Priya · Design Review · Feb 2024</div>
+      </div>
+      <div class="d6-answer-body">
+        The v1 API was deprecated in Q1 2024 primarily due to authentication model limitations — it used static API keys with no per-scope permissions, which became a compliance risk as the org moved toward SOC 2 preparation.<br><br>
+        Rafael's platform team proposed the change in #eng-platform; the decision was ratified in the February architecture review. The v2 API replaced it with OAuth 2.0 token-based auth, with migration completed by May 2024.
+      </div>
+      <div class="d6-answer-footer">
+        <button class="d6-feedback-btn">👍 Helpful</button>
+        <button class="d6-feedback-btn">👎 Wrong answer</button>
+        <button class="d6-feedback-btn" style="margin-left:auto">Copy</button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--zinc-200);border-radius:8px;padding:10px 14px;color:var(--zinc-400);font-size:13px;background:white">
+      <span>↗</span><span>Ask a follow-up…</span>
+    </div>
+  </main>
+  <div class="direction-label"><strong>D6</strong> — Light / Editorial · White background · Sidebar nav</div>
+</div>
+
+<script>
+  function show(id, btn) {
+    document.querySelectorAll('.direction').forEach(d => d.classList.remove('active'));
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    btn.classList.add('active');
+  }
+</script>
+</body>
+</html>

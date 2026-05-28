@@ -1,5 +1,5 @@
 ---
-stepsCompleted: [1, 2]
+stepsCompleted: [1, 2, 3, 4]
 inputDocuments:
   - planning-artifacts/prds/prd-OrgBrain-MVP-2026-05-26/prd-mvp.md
   - planning-artifacts/prds/prd-OrgBrain-2026-05-25/prd.md
@@ -256,3 +256,540 @@ So that the team can ship with confidence and observability is never retrofitted
 **Given** any service starts up
 **When** it is running
 **Then** a Prometheus `/metrics` endpoint responds with 200 and the following counters/histograms are registered (even if unpopulated): query latency histogram, ingestion queue depth, ingestion lag, LLM call duration, embedding call duration, confidence score distribution, fallback routing type counts, SSE connection count
+
+---
+
+## Epic 2: Organization Setup & Member Authentication
+
+An Admin can create an OrgBrain organization, complete the required disclosure confirmation flow, invite Members, and assign Intelligence Tier access. Members can accept invitations and log in. The ingestion gate (org_status = 'active' AND at least one non-Admin Member activated) is enforced. Tenant schema is provisioned automatically on org creation.
+
+### Story 2.1: Admin Registration & Tenant Provisioning
+
+As an **admin**,
+I want to register an OrgBrain organization,
+So that the system creates a dedicated tenant environment and I can begin configuration.
+
+**Acceptance Criteria:**
+
+**Given** the registration endpoint receives a valid org name and admin email
+**When** the admin submits registration
+**Then** an `organizations` record is created with `org_status = 'provisioning'`
+**And** a background River job runs `CREATE SCHEMA org_{id}` and applies all 7 tenant migrations
+**And** `org_status` flips to `'active'` only after all tenant migrations succeed
+**And** the admin receives a session cookie with httpOnly flag
+
+**Given** tenant provisioning fails (e.g., migration error)
+**When** the River job encounters an error
+**Then** `org_status` remains `'provisioning'` and the error is logged with `service=api` and `org_id`
+**And** the admin cannot proceed past registration until status is `'active'`
+
+---
+
+### Story 2.2: Required Organizational Disclosure Confirmation
+
+As an **admin**,
+I want to complete the organizational disclosure confirmation,
+So that employees are informed of OrgBrain's deployment before any ingestion begins.
+
+**Acceptance Criteria:**
+
+**Given** the admin has an active org account
+**When** they access the admin panel before completing disclosure
+**Then** they are redirected to the disclosure confirmation step
+**And** the disclosure step presents the template notice and requires explicit confirmation (not a checkbox — a deliberate affirm action)
+
+**Given** the admin submits the disclosure confirmation
+**When** it is recorded
+**Then** an append-only record is written to `audit_log` with `admin_id`, `timestamp`, and `event_type = 'disclosure_confirmed'`
+**And** the confirmation is visible in the Admin panel's disclosure log viewer
+
+**Given** disclosure has not been confirmed
+**When** any ingestion-enabling action is attempted
+**Then** the system blocks the action and surfaces the disclosure requirement with a clear explanation
+
+---
+
+### Story 2.3: Member Invitation & Account Activation
+
+As an **admin**,
+I want to invite Members to OrgBrain,
+So that they can access the Query Interface and I can control who joins the organization.
+
+**Acceptance Criteria:**
+
+**Given** the admin sends an invitation to a valid email address
+**When** the invitation is created
+**Then** an `invitations` record is created with a secure random token and 7-day expiry
+**And** the invitation URL (`/invite/[token]`) is surfaced to the admin for distribution
+
+**Given** a Member visits a valid invitation URL
+**When** they complete account activation
+**Then** a `members` record is created with `first_seen_at = NOW()` captured at activation time (this field cannot be reconstructed retroactively — required for FR-13p signal computation)
+**And** the Member receives a session cookie
+**And** the org's non-Admin activation count increments
+
+**Given** a Member is deactivated by the admin
+**When** deactivation is confirmed
+**Then** all sessions for that Member are immediately deleted (`DELETE FROM sessions WHERE member_id = $1`)
+**And** their Knowledge Graph contributions are retained
+
+---
+
+### Story 2.4: Member Login & Session Management
+
+As a **member**,
+I want to log in to OrgBrain and have my session persist across browser restarts,
+So that I can access the Query Interface without re-authenticating on every visit.
+
+**Acceptance Criteria:**
+
+**Given** a Member submits valid credentials on the login page
+**When** authentication succeeds
+**Then** a session record is created in the `sessions` table (shared schema) with `session_id` in an httpOnly cookie
+**And** the Member is redirected to the Query Interface
+
+**Given** a Member submits invalid credentials
+**When** authentication fails
+**Then** the response is a generic "invalid credentials" error (no user enumeration — same message for both bad password and unknown email)
+**And** no session is created
+
+**Given** a Member with an active session navigates to an authenticated route
+**When** the auth middleware validates the session cookie
+**Then** `org_id` and `member_id` are injected into the request context
+**And** the request proceeds to the handler
+
+**Given** a Member logs out
+**When** logout is requested
+**Then** the session record is deleted and the cookie is cleared
+
+---
+
+### Story 2.5: Intelligence Tier Assignment & Ingestion Gate
+
+As an **admin**,
+I want to assign Intelligence Tier access to specific Members and enforce the ingestion readiness gate,
+So that departure risk signals are only visible to authorized leadership, and ingestion only begins once the org is truly ready.
+
+**Acceptance Criteria:**
+
+**Given** the admin views the Member list
+**When** they assign Intelligence Tier to a Member
+**Then** the member's `tier` is updated and the change is logged to `audit_log` with `admin_id` and timestamp
+**And** the assigned Member can see the Intelligence Dashboard link in navigation
+
+**Given** a non-Intelligence-Tier Member requests `GET /v1/signals`
+**When** the request is processed
+**Then** a 403 is returned (tier check happens in auth middleware, not in the handler)
+
+**Given** disclosure is confirmed and at least one non-Admin Member has activated
+**When** the ingestion gate is evaluated
+**Then** `org_status = 'active'` AND the non-Admin activation count > 0 — both conditions must be true
+**And** the ingestion start date is displayed to all Members on activation ("Knowledge Graph building since [date]")
+
+**Given** disclosure is confirmed but no non-Admin Member has activated yet
+**When** admin attempts to connect Slack integration
+**Then** the system allows the OAuth connection to be prepared but queues ingestion jobs as blocked until the gate passes
+
+---
+
+## Epic 3: Slack Integration & Knowledge Graph
+
+An Admin can connect Slack via OAuth, configure channel exclusions, and OrgBrain continuously ingests public channel messages — extracting Knowledge Nodes, versioning decisions append-only, and maintaining the Knowledge Ownership Map. The Knowledge Graph is populated and internally consistent. DMs are excluded at three enforced layers. Slack OAuth connect lands in the same release increment as disclosure flow completion.
+
+### Story 3.1: Slack OAuth Connection & Channel Management
+
+As an **admin**,
+I want to connect OrgBrain to our Slack workspace and control which channels are ingested,
+So that the Knowledge Graph is populated from the right sources and nothing is ingested that we haven't approved.
+
+**Acceptance Criteria:**
+
+**Given** the admin navigates to Integrations and clicks "Connect Slack"
+**When** they complete the Slack OAuth flow
+**Then** the Slack access token is stored encrypted in the `integrations` table (tenant schema) via `pgcrypto` with key from Coolify env vars
+**And** the Slack app scope is limited to public channels only — no DM-related scope in the manifest
+**And** `scope_assert.go` runs on ingestion worker startup and hard-fails if any DM-related scope is present in the stored token
+
+**Given** the Slack connection is active
+**When** the admin views channel exclusions
+**Then** they can toggle specific public channels off; excluded channels are persisted and respected by the ingestion pipeline
+
+**Given** the admin disconnects the Slack integration
+**When** disconnection is confirmed
+**Then** future ingestion stops immediately
+**And** all existing Knowledge Nodes from that workspace are retained in the Knowledge Graph
+
+---
+
+### Story 3.2: Slack Webhook Receiver & Reconciliation Job
+
+As a **system**,
+I want to receive Slack events reliably and recover from webhook delivery gaps,
+So that the Knowledge Graph reflects all public channel messages within 15 minutes of posting.
+
+**Acceptance Criteria:**
+
+**Given** Slack sends a message event to `POST /webhooks/slack`
+**When** the webhook is received
+**Then** the handler verifies the Slack signature and acks with HTTP 200 within 3 seconds
+**And** it enqueues a single River ingestion job — no processing, no DB reads, no LLM calls in the receiver
+**And** the `events.go` parser rejects any event with `channel_type = im` or `channel_type = mpim` before enqueueing (second DM exclusion layer — pipeline-level)
+
+**Given** a duplicate Slack event arrives (same `workspace_id + channel_id + message_ts + thread_ts`)
+**When** the ingestion job attempts to write
+**Then** the DB-level unique constraint on `ingestion_events` prevents the duplicate (idempotency is DB-enforced, not application logic)
+
+**Given** the webhook has missed events (e.g., downtime window)
+**When** the reconciliation job runs (every 30 minutes, 1-hour lookback)
+**Then** it polls `conversations.history` for all non-excluded channels and enqueues any messages not yet seen in `ingestion_events`
+
+---
+
+### Story 3.3: Ingestion Pipeline — Filter, Embed & Stage Checkpointing
+
+As a **system**,
+I want every Slack message to be filtered before processing and embedded with stage-level fault tolerance,
+So that DMs can never reach the LLM and failed ingestion jobs recover at the failed stage rather than restarting from scratch.
+
+**Acceptance Criteria:**
+
+**Given** an ingestion job is dequeued by a River worker
+**When** it runs the filter stage
+**Then** `IngestionFilter` runs first — before any embedding or LLM call
+**And** any message with `channel_type = im` or `channel_type = mpim` is rejected with an audit event logged (`event_type = 'dm_rejection'`, message metadata only — no content)
+**And** low-signal messages (empty, bot-only, system events) are also filtered before embedding
+
+**Given** a message passes the filter
+**When** the embed stage runs
+**Then** `ai-worker POST /embed` is called with the message batch
+**And** the stage checkpoint (`ingestion_event_id, stage='embed', status='complete'`) is written before proceeding
+
+**Given** an ingestion job fails at any stage
+**When** it is re-enqueued
+**Then** it resumes at the failed stage only (not from the beginning) — verified by reading the stage checkpoint
+**And** after 3 consecutive failures at the same stage, the job moves to dead-letter with the error logged
+
+---
+
+### Story 3.4: Knowledge Node Extraction & Append-Only Storage
+
+As a **system**,
+I want embedded Slack messages to be extracted into structured Knowledge Nodes stored append-only,
+So that the Knowledge Graph accumulates organizational knowledge with full decision history preserved.
+
+**Acceptance Criteria:**
+
+**Given** an embedded message batch reaches the extract stage
+**When** `ai-worker POST /extract` is called
+**Then** Anthropic LLM extraction produces structured Knowledge Nodes with: content, source reference, source date, author (if determinable), Confidence Score, Knowledge Owner (if determinable), and `sensitivity_tier` tag
+**And** the stage checkpoint for `extract` is written before the write stage begins
+
+**Given** extracted nodes are written via `KnowledgeStoreAdapter`
+**When** a node representing a decision that was previously stored is updated
+**Then** the new version is appended — the original is never overwritten or deleted
+**And** both the original and updated state are retrievable with their respective dates and sources
+**And** the HNSW index on the embeddings column is updated for each new node
+
+**Given** the ingestion pipeline writes a node
+**When** `KnowledgeStoreAdapter.write()` is called
+**Then** `sensitivity_tier` is tagged at write time — never inferred at query time
+**And** no raw `db.Query()` call exists in any handler or worker (CI lint enforces this)
+
+---
+
+### Story 3.5: Knowledge Ownership Map
+
+As a **system**,
+I want the Knowledge Ownership Map to be pre-computed and kept current,
+So that the Query Interface can instantly surface Knowledge Owners without any query-time computation.
+
+**Acceptance Criteria:**
+
+**Given** the Knowledge Graph has been populated with nodes
+**When** the ownership recompute River job runs (every 24 hours)
+**Then** ownership assignments are updated in the `ownership_map` table for all nodes where authorship or activity patterns have changed
+**And** every node with a determinable owner has a Knowledge Owner assigned
+
+**Given** a significant activity event occurs (e.g., a Member authors a node that becomes a key decision)
+**When** the event triggers the 60-minute recompute job
+**Then** the ownership map is updated within 60 minutes for the affected domains
+
+**Given** a node was created less than 24 hours ago and no ownership assignment exists yet
+**When** the Knowledge Owner is needed (e.g., fallback routing)
+**Then** the system falls back to the node's creator as the Knowledge Owner
+
+**Given** the ingestion pipeline is running
+**When** ingestion lag is checked
+**Then** `GET /v1/ingestion-lag` returns the current lag per org (time since most recent successfully processed message)
+**And** the Query UI displays "Knowledge Graph current as of [timestamp]" using this endpoint
+
+---
+
+## Epic 4: Query Interface
+
+Any authenticated Member can ask a natural language question via the web UI, receive a streaming sourced answer with pre-generated Source Attribution and Confidence Score, get branch-specific fallback routing when confidence is low (ROUTE_TO_OWNER | NO_COVERAGE | REPHRASE | ACCESS_FILTERED), see staleness warnings on old content, and provide trust-weighted feedback. All four fallback routes are handled distinctly in the UI.
+
+### Story 4.1: RAG Pipeline — Query Embedding, Retrieval & Confidence Scoring
+
+As a **system**,
+I want queries to be embedded, retrieved against the Knowledge Graph, and scored for confidence before any LLM generation begins,
+So that Source Attribution is always computed from evidence — never from LLM output — and fallback routing can fire before generation wastes budget.
+
+**Acceptance Criteria:**
+
+**Given** the RAG service receives a query request with `org_id` via `X-Org-ID` header
+**When** the pipeline runs
+**Then** the query is embedded via OpenAI `text-embedding-3-small`
+**And** HNSW top-K retrieval runs against the tenant's `embeddings` table (search_path set via `SET LOCAL` in `rag/db.py`)
+**And** the Confidence Score is computed from retrieval results (source recency, source authority, consistency across sources) — before LLM generation starts
+**And** Source Attribution (source name, author, date, link) is derived from retrieved nodes — also pre-generation
+
+**Given** retrieval returns results that include nodes above the caller's `sensitivity_tier`
+**When** `KnowledgeStoreAdapter.query()` runs
+**Then** nodes above the caller's tier are filtered out before any result is returned (enforcement at adapter layer, not in route handler)
+**And** if filtering removes all candidates, the FallbackRouter receives `ACCESS_FILTERED`
+
+**Given** retrieval returns an empty result set
+**When** the FallbackRouter evaluates
+**Then** it returns `NO_COVERAGE` (pure function — no DB calls, no logging, no side effects)
+
+---
+
+### Story 4.2: RAG Pipeline — LLM Streaming Generation & SSE Protocol
+
+As a **member**,
+I want to see the answer sources appear immediately and the answer stream in as it's generated,
+So that I can start evaluating the answer's provenance before reading the full response.
+
+**Acceptance Criteria:**
+
+**Given** confidence meets the threshold and retrieval returned candidates
+**When** the RAG service begins generation
+**Then** a `meta` SSE event is emitted first: `{"confidence": float, "sources": [...], "routing": null}`
+**And** `data` SSE events follow, one per LLM token: `{"token": "..."}`
+**And** the `meta` event always arrives before the first `data` token — Source Attribution is visible to the user before the answer text starts rendering
+
+**Given** LLM generation exceeds 25 seconds
+**When** the hard timeout fires
+**Then** the stream closes with an `error` SSE event: `{"type": "timeout", "routing": "REPHRASE", "suggestions": [...]}`
+**And** the client renders source nodes from the last received `meta` event with a "couldn't synthesize a full answer" message
+**And** an SSE heartbeat comment is sent at 20 seconds to prevent client-side connection timeout
+
+**Given** a query response is delivered
+**When** query latency is recorded
+**Then** it is tracked as a p50/p95/p99 histogram (not average) in the `query_latency` Prometheus metric
+**And** the Confidence Score and fallback routing type are logged at decision time, including the threshold value in effect
+
+---
+
+### Story 4.3: Query Session Management & Fallback Routing
+
+As a **member**,
+I want to ask follow-up questions within a session and receive a clear, branch-specific response when OrgBrain can't answer,
+So that conversational context is preserved and I always know exactly what to do when confidence is too low.
+
+**Acceptance Criteria:**
+
+**Given** a Member submits a query
+**When** a session does not yet exist
+**Then** a `query_sessions` record is created with `conversation_history` as JSONB and `last_active_at = NOW()`
+
+**Given** a Member submits a follow-up question within 30 minutes of the last query
+**When** the RAG service receives the request
+**Then** the conversation history from the session is included in the context window
+**And** `last_active_at` is updated
+
+**Given** a session has been idle for more than 30 minutes
+**When** the River expiry job runs
+**Then** the `query_sessions` row is deleted
+**And** the next query from that Member starts a fresh session with no prior context
+
+**Given** the FallbackRouter returns `ROUTE_TO_OWNER`
+**When** the UI renders the fallback
+**Then** the `FallbackCard` shows the Knowledge Owner's name and Slack handle with a deep-link to the most relevant Slack thread
+
+**Given** the FallbackRouter returns `NO_COVERAGE`
+**When** the UI renders the fallback
+**Then** the `FallbackCard` shows a "Flag for your team" action that turns the unanswered question into a contribution signal
+
+**Given** the FallbackRouter returns `REPHRASE`
+**When** the UI renders the fallback
+**Then** the `FallbackCard` shows two LLM-generated query variant suggestions as one-click re-queries
+
+**Given** the FallbackRouter returns `ACCESS_FILTERED`
+**When** the UI renders the fallback
+**Then** the `FallbackCard` states that an answer exists but is not accessible at the Member's tier — no further detail is surfaced
+
+---
+
+### Story 4.4: Query Web UI — Streaming Interface & Staleness Warning
+
+As a **member**,
+I want a clean query interface where sources appear before the answer and stale content is flagged,
+So that I can trust what I'm reading and know when to verify with a colleague.
+
+**Acceptance Criteria:**
+
+**Given** a Member navigates to the Query Interface
+**When** the page loads
+**Then** a natural language input (`QueryInput`) and submit button are rendered
+**And** the authenticated route guard redirects unauthenticated users to login
+
+**Given** a Member submits a query
+**When** the SSE stream begins
+**Then** `useQueryStream` hook connects to `POST /v1/query` via `EventSource`
+**And** on `meta` event: `SourceAttribution` cards render immediately (source name, author, date) before any answer text
+**And** on `data` events: answer tokens stream into the `QueryStream` component in real time
+**And** on `error` event: the stream closes and the error state renders inline (not as a toast — user needs context)
+
+**Given** a retrieved node is older than the staleness threshold (default 6 months)
+**When** the answer renders
+**Then** a `StalenessWarning` component renders inline with the answer
+**And** the most recent related context is surfaced alongside the original
+**And** the Knowledge Owner fallback is offered
+
+**Given** the ingestion lag exceeds the configurable staleness banner threshold
+**When** `useIngestionStatus` polls `GET /v1/ingestion-lag`
+**Then** a banner renders: "Knowledge Graph last updated [time ago]" to set expectations before querying
+
+---
+
+### Story 4.5: Trust-Weighted Query Feedback
+
+As a **member**,
+I want to give a thumbs up or down on answers,
+So that OrgBrain can calibrate its Confidence Threshold based on real answer quality signals.
+
+**Acceptance Criteria:**
+
+**Given** a query response is displayed
+**When** the Member sees `FeedbackButtons`
+**Then** thumbs up and thumbs down are available with a 2-second minimum between submissions enforced client-side and server-side
+
+**Given** a Member submits feedback
+**When** `POST /v1/feedback` is called
+**Then** a `query_feedback` row is created with `weighted_signal = signal × trust_weight` (generated column)
+**And** rate limits are enforced: max 20/hour, max 3/minute, one per `query_id` per user (DB unique index)
+**And** submissions exceeding rate limits return 429 with a `Retry-After` header
+
+**Given** the async anomaly detection job runs (every 15 minutes)
+**When** it processes recent feedback rows
+**Then** it flags: `burst_submission`, `mono_signal`, `fast_signal`, `targeted_downvote`, `consensus_outlier`
+**And** it flags `cover_tracks` when a departure-risk-flagged Member has a downvote spike in the same 7-day window (without exposing the departure risk signal to any unauthorized party)
+
+**Given** a threshold recalibration batch is processed
+**When** more than 30% of rows in the batch carry anomaly flags
+**Then** the batch is rejected and logged — not applied to the Confidence Threshold
+
+---
+
+## Epic 5: Departure Risk Intelligence
+
+Intelligence Tier Members can view the Intelligence Dashboard showing plain-language Departure Risk Signal cards based on Slack engagement velocity, with severity levels (Watch / Concerning / Urgent), decline start date, and pattern detail. Signal auto-resolves on recovery. Admins can enable/disable signal clusters. Consent architecture is explicitly designed before any signal computation code is written.
+
+### Story 5.1: Engagement Velocity Signal Computation
+
+As a **system**,
+I want to continuously compute Slack engagement velocity trends per Member and store the results,
+So that the Intelligence Dashboard always reflects current departure risk state without manual intervention.
+
+**Acceptance Criteria:**
+
+**Given** `signal-job` runs (cron schedule)
+**When** it processes active orgs
+**Then** for each Member it computes a 30-day trend in: message frequency in public channels and average response time in public channels
+**And** `first_seen_at` (member_tenure_window) is used to exclude periods before the Member joined — this field was captured at activation in Story 2.3 and cannot be reconstructed retroactively
+**And** any Member period marked as on-leave by the Admin is excluded from the trend window
+
+**Given** a Member's engagement velocity shows a sustained declining trend over 30 days
+**When** the signal is evaluated
+**Then** a `departure_risk_signals` row is written (or updated) with severity, `pattern_detail`, and `decline_started_at`
+**And** if a signal already exists for that Member and the trend has recovered
+**Then** `resolved_at` is set to NOW() and the signal is no longer surfaced on the dashboard
+
+**Given** insufficient data exists to compute a reliable baseline (minimum window TBD during beta)
+**When** the job runs for that Member
+**Then** a "building baseline" state is recorded — no signal row is written, and the dashboard shows the cold-start state for that Member
+
+---
+
+### Story 5.2: Signal Severity Classification
+
+As a **system**,
+I want departure risk signals to carry severity levels with enough detail for a VP to understand the pattern without any training,
+So that the Intelligence Dashboard is self-explanatory and actionable.
+
+**Acceptance Criteria:**
+
+**Given** a departure risk signal is computed for a Member
+**When** severity is classified
+**Then** severity is one of: `Watch` (early decline, < 14 days sustained), `Concerning` (14–28 days sustained), `Urgent` (> 28 days sustained or steep drop)
+**And** `pattern_detail` is stored as a plain-language string describing the observed pattern (e.g., "Message frequency down 60% over 31 days; average response time increased from 2h to 14h")
+**And** `decline_started_at` records when the declining trend was first detected
+
+**Given** a signal row exists in `departure_risk_signals`
+**When** the severity threshold changes on a subsequent computation run (trend worsened or improved)
+**Then** the existing row is updated in place with the new severity and pattern detail
+**And** `resolved_at` is set only when the trend fully recovers — partial improvement does not resolve the signal
+
+**Given** the false positive rate counter-metric
+**When** a signal auto-resolves within 7 days of being surfaced
+**Then** it is counted as a potential false positive in the `signal_false_positive_rate` Prometheus counter (for pilot calibration)
+
+---
+
+### Story 5.3: Intelligence Dashboard — Signal Cards & Cold Start
+
+As a **VP of Engineering**,
+I want to see clear departure risk signal cards for flagged team Members with enough context to act,
+So that I can initiate retention conversations before someone hands in a resignation.
+
+**Acceptance Criteria:**
+
+**Given** an Intelligence Tier Member navigates to the Intelligence Dashboard
+**When** the page loads
+**Then** `GET /v1/signals` is called; the API enforces Intelligence Tier gate at middleware (not in the handler)
+**And** `useSignalCards` polls every 60 seconds to reflect current signal state
+
+**Given** active signals exist
+**When** they render
+**Then** each `SignalCard` displays: Member name, severity badge (Watch / Concerning / Urgent), plain-language pattern description, decline start date, and a suggested next action (e.g., "Consider a 1:1 check-in via their Senior EM")
+**And** a `SignalSparkline` (Recharts) renders the 30-day engagement trend inline on each card
+**And** no raw metrics, numerical scores, or model internals are visible at any point
+
+**Given** no signals exist yet (org is in cold-start period)
+**When** the dashboard loads
+**Then** `BaselineState` renders: "OrgBrain is building your team's engagement baseline. Signals will appear once enough data has been collected."
+**And** no empty state is shown that could be misread as "no risk detected"
+
+**Given** a signal has `resolved_at` set
+**When** the dashboard loads
+**Then** the resolved signal does not appear — the dashboard shows only active signals
+
+---
+
+### Story 5.4: Admin Signal Configuration & Privacy Audit Log
+
+As an **admin**,
+I want to enable or disable engagement signal clusters and see a complete log of all privacy configuration changes,
+So that our organization controls what is monitored and we have an auditable record for compliance purposes.
+
+**Acceptance Criteria:**
+
+**Given** the admin opens Privacy Configuration in the admin panel
+**When** the page loads
+**Then** each Engagement Signal cluster (Phase 1: Slack engagement velocity only) is shown with a toggle and plain-language description of what it measures
+**And** the full disclosure log is visible: every `audit_log` entry with `event_type` in (`disclosure_confirmed`, `signal_cluster_toggled`, `privacy_config_changed`), with admin identity and timestamp
+
+**Given** the admin toggles a signal cluster off
+**When** the change is saved
+**Then** an append-only `audit_log` row is written: `admin_id`, `timestamp`, `event_type = 'signal_cluster_toggled'`, `cluster_id`, `new_state`
+**And** `signal-job` respects the disabled cluster on the next computation run — no signals are written for disabled clusters
+
+**Given** the admin re-enables a previously disabled cluster
+**When** `signal-job` next runs
+**Then** computation resumes for that cluster from the current date — no retroactive signals are generated for the disabled period
+
+**Given** the feedback loop integrity check runs (AR-14)
+**When** a threshold recalibration batch has > 30% anomaly-flagged rows
+**Then** the batch is rejected, an `audit_log` entry is written with `event_type = 'recalibration_batch_rejected'`, and the current threshold is unchanged

@@ -92,6 +92,12 @@ event: error  → {"type": "timeout", "routing": "REPHRASE", ...}           ← 
 
 Source Attribution must be visible to the user before any answer text renders (`meta` arrives before first `data`). Hard LLM timeout at 25s; SSE heartbeat at 20s.
 
+## Project Rules
+
+See [`docs/rules.md`](docs/rules.md) for project-specific rules. Key items:
+
+- **Never add `Co-Authored-By` trailers to commits.**
+
 ## BMad Workflow
 
 Planning artifacts were produced using the BMad Method CLI installed in `.claude/skills/`. To continue planning work (e.g., finish epics/stories, run sprint planning):

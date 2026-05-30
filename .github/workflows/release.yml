@@ -1,0 +1,11 @@
+name: Release
+on:
+  push:
+    branches:
+      - release/*
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: echo "Release stub — build and push added in Story 1.5"

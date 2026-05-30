@@ -1,0 +1,5 @@
+package: ragclient
+generate:
+  models: true
+  client: true
+output: internal/client/ragclient/rag_client.go

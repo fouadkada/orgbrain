@@ -1,0 +1,88 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: orgbrain
+      POSTGRES_PASSWORD: orgbrain
+      POSTGRES_DB: orgbrain
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orgbrain"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    environment:
+      DB_USER: orgbrain
+      DB_PASSWORD: orgbrain
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: orgbrain
+      POOL_MODE: transaction
+      IGNORE_STARTUP_PARAMETERS: extra_float_digits
+    ports:
+      - "6432:5432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: ./api
+    ports:
+      - "8080:8080"
+    environment:
+      API_PORT: 8080
+      DATABASE_URL: postgres://orgbrain:orgbrain@pgbouncer:5432/orgbrain
+      DIRECT_DATABASE_URL: postgres://orgbrain:orgbrain@postgres:5432/orgbrain
+      API_SESSION_SECRET: local-dev-secret
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  ai-worker:
+    build: ./ai-worker
+    ports:
+      - "8001:8001"
+    environment:
+      AI_WORKER_PORT: 8001
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  rag:
+    build: ./rag
+    ports:
+      - "8002:8002"
+    environment:
+      RAG_PORT: 8002
+      DATABASE_URL: postgres://orgbrain:orgbrain@pgbouncer:5432/orgbrain
+      RAG_RETRIEVAL_STRATEGY: pgvector
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  signal-job:
+    build: ./signal-job
+    restart: "no"
+    environment:
+      SIGNAL_JOB_DATABASE_URL: postgres://orgbrain:orgbrain@postgres:5432/orgbrain
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build: ./web
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080
+    depends_on:
+      - api
+
+volumes:
+  pgdata:

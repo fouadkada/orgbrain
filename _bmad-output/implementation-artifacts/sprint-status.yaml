@@ -36,7 +36,7 @@
 
 generated: 2026-05-30
 last_updated: 2026-05-30
-project: OrgBrain
+project: OrgBrain  # story 1-1 in-progress
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
@@ -44,7 +44,7 @@ story_location: _bmad-output/implementation-artifacts
 development_status:
   # ─── Epic 1: Development Foundation & Local Dev Environment ───
   epic-1: in-progress
-  1-1-monorepo-scaffold-local-dev-environment: ready-for-dev
+  1-1-monorepo-scaffold-local-dev-environment: review
   1-2-database-schema-migration-runner: backlog
   1-3-core-abstractions-knowledgestoreadapter-ingestionfilter: backlog
   1-4-core-abstractions-jobqueue-fallbackrouter-openapi-contracts: backlog

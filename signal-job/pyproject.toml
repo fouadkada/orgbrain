@@ -1,0 +1,12 @@
+[project]
+name = "signal-job"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "psycopg2-binary>=2.9.0",
+    "pydantic>=2.0.0",
+    "structlog>=24.0.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

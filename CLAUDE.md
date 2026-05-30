@@ -92,6 +92,24 @@ event: error  → {"type": "timeout", "routing": "REPHRASE", ...}           ← 
 
 Source Attribution must be visible to the user before any answer text renders (`meta` arrives before first `data`). Hard LLM timeout at 25s; SSE heartbeat at 20s.
 
+## Python Dependency Management
+
+All Python work across `ai-worker/`, `rag/`, and `signal-job/` uses **`uv`** — never bare `pip install`.
+
+- Dependencies live in `pyproject.toml` `[project.dependencies]`. There is no `requirements.txt`.
+- **Add a package:** `uv add <pkg>` — updates `pyproject.toml` and `uv.lock`.
+- **Install / sync the venv:** `uv sync` — creates `.venv/` if absent, installs all pinned deps.
+- **Run commands without activating:** `uv run <cmd>` (e.g. `uv run pytest`, `uv run uvicorn ...`).
+- **Activate when needed** (interactive shells): `source .venv/bin/activate`.
+- **Never use bare `pip install`** or `uv pip install` — always `uv add` / `uv sync`.
+
+Quick reference per service:
+```bash
+cd ai-worker  && uv sync          # first-time setup or after pulling
+cd ai-worker  && uv add httpx     # add a new dependency
+cd ai-worker  && uv run pytest    # run tests without activating
+```
+
 ## Project Rules
 
 See [`docs/rules.md`](docs/rules.md) for project-specific rules. Key items:

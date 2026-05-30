@@ -1,0 +1,5 @@
+package: aiworker
+generate:
+  models: true
+  client: true
+output: internal/client/aiworker/ai_worker_client.go

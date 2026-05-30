@@ -1,0 +1,11 @@
+openapi: "3.0.3"
+info:
+  title: ai-worker
+  version: "0.1.0"
+paths:
+  /healthz:
+    get:
+      operationId: healthz
+      responses:
+        "200":
+          description: OK

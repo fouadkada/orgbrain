@@ -173,11 +173,11 @@ go get github.com/anthropics/anthropic-sdk-go
 # Python AI services — each service uses app/ as its top-level package
 # uvicorn entry point: uvicorn app.main:app
 cd ai-worker && python -m venv .venv && mkdir -p app
-pip install fastapi uvicorn anthropic openai pydantic
+pip install fastapi uvicorn anthropic openai pydantic structlog
 cd ../rag && python -m venv .venv && mkdir -p app
-pip install fastapi uvicorn anthropic openai pgvector asyncpg pydantic
+pip install fastapi uvicorn anthropic openai pgvector asyncpg pydantic structlog
 cd ../signal-job && python -m venv .venv && mkdir -p app
-pip install anthropic asyncpg pydantic
+pip install psycopg2-binary pydantic structlog
 
 # Migrations
 go install github.com/pressly/goose/v3/cmd/goose@latest
@@ -197,7 +197,7 @@ orgbrain/
 │   │   ├── store/              # KnowledgeStoreAdapter
 │   │   ├── queue/              # River job definitions
 │   │   └── auth/               # member auth, tier enforcement
-│   ├── generated/              # oapi-codegen output (ai-worker + rag clients)
+│   ├── internal/client/        # oapi-codegen output (ai-worker + rag clients — do not edit manually)
 │   └── Dockerfile
 ├── ai-worker/                  # Python: FastAPI
 │   ├── app/
@@ -510,13 +510,13 @@ These rules are mandatory for any AI agent implementing OrgBrain. They are non-n
 | FR | Functional Area | Service(s) | Key Files |
 |---|---|---|---|
 | FR-1p | Slack ingestion + webhook | `api` | `slack/webhook_handler.go`, `slack/events.go`, `queue/ingestion_job.go`, `slack/reconcile.go` |
-| FR-5 | Knowledge Node extraction | `ai-worker`, `api` | `extract.py`, `store/knowledge_store.go` |
+| FR-5 | Knowledge Node extraction | `ai-worker`, `api` | `app/extract.py`, `store/knowledge_store.go` |
 | FR-6 | Decision versioning (append-only) | `api` | `store/knowledge_store.go`, `migrations/tenant/001_knowledge_nodes.sql` |
 | FR-7 | Knowledge Ownership Map | `api` | `ownership/ownership.go`, `queue/ownership_job.go`, `store/ownership_store.go` |
-| FR-8p | Natural language query (SSE) | `api`, `rag` | `handler/query_handler.go`, `rag/pipeline.py`, `web/query/` |
-| FR-9 | Confidence threshold + fallback routing | `rag`, `api` | `rag/fallback.py`, `rag/confidence.py`, `handler/query_handler.go` |
-| FR-10 | Staleness indication | `rag`, `api` | `rag/staleness.py`, `handler/health_handler.go` |
-| FR-13p | Engagement velocity signal | `signal-job` | `signal-job/compute.py`, `signal-job/main.py` |
+| FR-8p | Natural language query (SSE) | `api`, `rag` | `handler/query_handler.go`, `rag/app/pipeline.py`, `web/query/` |
+| FR-9 | Confidence threshold + fallback routing | `rag`, `api` | `rag/app/fallback.py`, `rag/app/confidence.py`, `handler/query_handler.go` |
+| FR-10 | Staleness indication | `rag`, `api` | `rag/app/staleness.py`, `handler/health_handler.go` |
+| FR-13p | Engagement velocity signal | `signal-job` | `signal-job/app/compute.py`, `signal-job/app/main.py` |
 | FR-14/15 | Intelligence Dashboard | `web`, `api` | `web/dashboard/`, `handler/signal_handler.go`, `store/signal_store.go` |
 | FR-16p | Slack OAuth integration | `api` | `slack/oauth.go`, `handler/admin_handler.go` |
 | FR-17 | Member access management | `api` | `auth/session.go`, `handler/member_handler.go`, `migrations/shared/002_members.sql` |
@@ -592,10 +592,12 @@ orgbrain/
 │   └── go.sum
 │
 ├── ai-worker/                          # Python + FastAPI
-│   ├── main.py                         # FastAPI app: POST /embed, POST /extract
-│   ├── embed.py                        # OpenAI text-embedding-3-small batching
-│   ├── extract.py                      # Anthropic: Knowledge Node extraction from Slack message
-│   ├── models.py                       # Pydantic request/response models
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py                     # FastAPI app instance (entry: app.main:app): POST /embed, POST /extract
+│   │   ├── embed.py                    # OpenAI text-embedding-3-small batching
+│   │   ├── extract.py                  # Anthropic: Knowledge Node extraction from Slack message
+│   │   └── models.py                   # Pydantic request/response models
 │   ├── openapi.yaml                    # Contract — source of truth for Go oapi-codegen
 │   ├── tests/
 │   │   ├── test_embed.py               # unit: mock OpenAI client
@@ -605,16 +607,19 @@ orgbrain/
 │   └── Dockerfile
 │
 ├── rag/                                # Python + FastAPI
-│   ├── main.py                         # FastAPI app: POST /query (SSE streaming response)
-│   ├── pipeline.py                     # embed → retrieve → generate → confidence score
-│   ├── fallback.py                     # Pure fn: FallbackRouter → ROUTE_TO_OWNER|NO_COVERAGE|REPHRASE|ACCESS_FILTERED
-│   ├── retrieval.py                    # pgvector HNSW top-K; RETRIEVAL_STRATEGY env var abstraction
-│   ├── confidence.py                   # Confidence Score computed from retrieval (pre-generation)
-│   ├── staleness.py                    # FR-10: node age check, staleness threshold logic
-│   ├── models.py                       # Pydantic models
-│   ├── db.py                           # asyncpg pool; SET LOCAL search_path per call
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py                     # FastAPI app instance (entry: app.main:app): POST /query (SSE streaming response)
+│   │   ├── pipeline.py                 # embed → retrieve → generate → confidence score
+│   │   ├── fallback.py                 # Pure fn: FallbackRouter → ROUTE_TO_OWNER|NO_COVERAGE|REPHRASE|ACCESS_FILTERED
+│   │   ├── retrieval.py                # pgvector HNSW top-K; RETRIEVAL_STRATEGY env var abstraction
+│   │   ├── confidence.py               # Confidence Score computed from retrieval (pre-generation)
+│   │   ├── staleness.py                # FR-10: node age check, staleness threshold logic
+│   │   ├── models.py                   # Pydantic models
+│   │   └── db.py                       # asyncpg pool; SET LOCAL search_path per call
 │   ├── openapi.yaml                    # Contract — source of truth for Go oapi-codegen
 │   ├── tests/
+│   │   ├── __init__.py
 │   │   ├── test_pipeline.py
 │   │   ├── test_fallback.py            # covers all four enum values
 │   │   ├── test_retrieval.py
@@ -623,11 +628,14 @@ orgbrain/
 │   └── Dockerfile
 │
 ├── signal-job/                         # Python cron — no HTTP server, no open port
-│   ├── main.py                         # entry: load active orgs → compute per-member → write signals
-│   ├── compute.py                      # 30-day engagement velocity: message freq + response time trend
-│   ├── db.py                           # psycopg2 pool; SET LOCAL search_path per org
-│   ├── models.py                       # signal result dataclasses
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py                     # entry: load active orgs → compute per-member → write signals
+│   │   ├── compute.py                  # 30-day engagement velocity: message freq + response time trend
+│   │   ├── db.py                       # psycopg2 pool; SET LOCAL search_path per org
+│   │   └── models.py                   # signal result dataclasses
 │   ├── tests/
+│   │   ├── __init__.py
 │   │   ├── test_compute.py             # unit: signal math with synthetic time-series data
 │   │   └── test_cold_start.py          # edge: "building baseline" state when data < minimum window
 │   ├── requirements.txt
@@ -784,9 +792,9 @@ signal-job (Python cron, no HTTP)
 
 ### Coherence Validation
 
-**Decision Compatibility:** All technology choices are version-compatible and conflict-free. River is Postgres-native — no Redis introduced anywhere (rate limiting, sessions, queue all Postgres-backed, consistent). PgBouncer transaction-mode paired correctly with `SET LOCAL` — session-mode explicitly rejected and documented as the failure mode. FastAPI auto-generates OpenAPI 3.x specs consumed directly by `oapi-codegen` — no manual schema maintenance. SSE is native to Go's `net/http` — no WebSocket library dependency. `asyncpg` (async) in `rag/db.py` and `psycopg2` (sync) in `signal-job/db.py` is intentional — `signal-job` is a blocking cron script, not an async server.
+**Decision Compatibility:** All technology choices are version-compatible and conflict-free. River is Postgres-native — no Redis introduced anywhere (rate limiting, sessions, queue all Postgres-backed, consistent). PgBouncer transaction-mode paired correctly with `SET LOCAL` — session-mode explicitly rejected and documented as the failure mode. FastAPI auto-generates OpenAPI 3.x specs consumed directly by `oapi-codegen` — no manual schema maintenance. SSE is native to Go's `net/http` — no WebSocket library dependency. `asyncpg` (async) in `rag/app/db.py` and `psycopg2` (sync) in `signal-job/app/db.py` is intentional — `signal-job` is a blocking cron script, not an async server.
 
-**Pattern Consistency:** Naming conventions cover all layers comprehensively. `SET LOCAL search_path` appears in all three code paths that touch tenant schemas: `adapter.go` (Go), `rag/db.py` (Python), `signal-job/db.py` (Python). RFC 7807 error format applied only at the Go API boundary — internal Python services return plain JSON (correct: they are not client-facing). SSE event types (`meta`/`data`/`error`) defined in patterns and consumed in `useQueryStream.ts` — consistent end-to-end.
+**Pattern Consistency:** Naming conventions cover all layers comprehensively. `SET LOCAL search_path` appears in all three code paths that touch tenant schemas: `adapter.go` (Go), `rag/app/db.py` (Python), `signal-job/app/db.py` (Python). RFC 7807 error format applied only at the Go API boundary — internal Python services return plain JSON (correct: they are not client-facing). SSE event types (`meta`/`data`/`error`) defined in patterns and consumed in `useQueryStream.ts` — consistent end-to-end.
 
 **Structure Alignment:** Every architectural abstraction has a named home. Shared and tenant migrations are structurally separated. `openapi/` at monorepo root is the single source of truth, consumed by generated code in `api/internal/client/`. `scripts/isolation-test.sh` enforces the cross-tenant CI requirement named in patterns — structure matches rules.
 

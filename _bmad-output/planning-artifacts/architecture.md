@@ -172,12 +172,12 @@ go get github.com/anthropics/anthropic-sdk-go
 
 # Python AI services — each service uses app/ as its top-level package
 # uvicorn entry point: uvicorn app.main:app
-cd ai-worker && python -m venv .venv && mkdir -p app
-pip install fastapi uvicorn anthropic openai pydantic structlog
-cd ../rag && python -m venv .venv && mkdir -p app
-pip install fastapi uvicorn anthropic openai pgvector asyncpg pydantic structlog
-cd ../signal-job && python -m venv .venv && mkdir -p app
-pip install psycopg2-binary pydantic structlog
+# Package manager: uv — never bare pip install
+cd ai-worker && uv sync && mkdir -p app   # uv sync creates .venv/ and installs from pyproject.toml
+cd ../rag && uv sync && mkdir -p app
+cd ../signal-job && uv sync && mkdir -p app
+# Add packages: uv add <pkg>  (updates pyproject.toml + uv.lock)
+# Run without activating: uv run <cmd>  (e.g. uv run pytest, uv run uvicorn ...)
 
 # Migrations
 go install github.com/pressly/goose/v3/cmd/goose@latest
@@ -241,6 +241,7 @@ orgbrain/
 | Frontend | Next.js 16.2, App Router, TypeScript, Tailwind |
 | Job queue | River (Postgres-backed, no Redis) |
 | DB driver | pgx v5 + pgvector-go |
+| Python package manager | uv (`uv add` / `uv sync` / `uv run`) — no bare pip, no requirements.txt |
 | Migrations | Goose (per-schema tenant runner) |
 | Embeddings | OpenAI text-embedding-3-small |
 | LLM | Anthropic SDK (Go + Python) |
@@ -603,7 +604,8 @@ orgbrain/
 │   │   ├── test_embed.py               # unit: mock OpenAI client
 │   │   ├── test_extract.py             # unit: mock Anthropic client
 │   │   └── test_integration.py         # FastAPI test client end-to-end
-│   ├── requirements.txt
+│   ├── pyproject.toml                  # dependencies + pytest config; uv.lock pins versions
+│   ├── uv.lock
 │   └── Dockerfile
 │
 ├── rag/                                # Python + FastAPI
@@ -624,7 +626,8 @@ orgbrain/
 │   │   ├── test_fallback.py            # covers all four enum values
 │   │   ├── test_retrieval.py
 │   │   └── test_confidence.py
-│   ├── requirements.txt
+│   ├── pyproject.toml                  # dependencies + pytest config; uv.lock pins versions
+│   ├── uv.lock
 │   └── Dockerfile
 │
 ├── signal-job/                         # Python cron — no HTTP server, no open port
@@ -638,7 +641,8 @@ orgbrain/
 │   │   ├── __init__.py
 │   │   ├── test_compute.py             # unit: signal math with synthetic time-series data
 │   │   └── test_cold_start.py          # edge: "building baseline" state when data < minimum window
-│   ├── requirements.txt
+│   ├── pyproject.toml                  # dependencies + pytest config; uv.lock pins versions
+│   ├── uv.lock
 │   └── Dockerfile
 │
 ├── web/                                # Next.js 16.2, App Router, TypeScript, Tailwind
